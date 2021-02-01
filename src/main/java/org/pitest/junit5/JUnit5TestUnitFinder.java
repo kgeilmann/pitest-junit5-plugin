@@ -19,14 +19,16 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
 
-import org.junit.platform.commons.util.PreconditionViolationException;
+import org.junit.platform.commons.PreconditionViolationException;
 import org.junit.platform.engine.Filter;
+import org.junit.platform.engine.FilterResult;
+import org.junit.platform.engine.TestDescriptor;
 import org.junit.platform.engine.discovery.DiscoverySelectors;
 import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.Launcher;
+import org.junit.platform.launcher.PostDiscoveryFilter;
 import org.junit.platform.launcher.TagFilter;
 import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
@@ -60,54 +62,94 @@ public class JUnit5TestUnitFinder implements TestUnitFinder {
             return emptyList();
         }
 
-        List<Filter> filters = new ArrayList<>(2);
-        try {
-            List<String> excludedGroups = testGroupConfig.getExcludedGroups();
-            if(excludedGroups != null && !excludedGroups.isEmpty()) {
-                filters.add(TagFilter.excludeTags(excludedGroups));
-            }
-
-            List<String> includedGroups = testGroupConfig.getIncludedGroups();
-            if(includedGroups != null && !includedGroups.isEmpty()) {
-                filters.add(TagFilter.includeTags(includedGroups));
-            }
-        } catch(PreconditionViolationException e) {
-            throw new IllegalArgumentException("Error creating tag filter", e);
-        }
-
-        TestIdentifierListener listener = new TestIdentifierListener();
+        List<TestIdentifier> collectedIdentifiers = new ArrayList<>();
+        CollectIdentifierFilters identifierFilter = new CollectIdentifierFilters(collectedIdentifiers);
+        TestIdentifierListener listener = new TestIdentifierListener(collectedIdentifiers);
         launcher.execute(LauncherDiscoveryRequestBuilder
                 .request()
                 .selectors(DiscoverySelectors.selectClass(clazz))
-                .filters(filters.toArray(new Filter[filters.size()]))
+                .filters(identifierFilter)
                 .build(), listener);
 
-        return listener.getIdentifiers()
+        return collectedIdentifiers
                 .stream()
                 .map(testIdentifier -> new JUnit5TestUnit(clazz, testIdentifier))
                 .collect(toList());
     }
 
-    private class TestIdentifierListener extends SummaryGeneratingListener {
-		private final List<TestIdentifier> identifiers = new ArrayList<>();
+    private boolean isTestMethodIncluded(TestIdentifier testIdentifier) {
+        if (testIdentifier.isTest()) {
+            // filter out testMethods
+            if (includedTestMethods != null && !includedTestMethods.isEmpty()
+                    && testIdentifier.getSource().isPresent()
+                    && testIdentifier.getSource().get() instanceof MethodSource
+                    && !includedTestMethods.contains(((MethodSource)testIdentifier.getSource().get()).getMethodName())) {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
 
-		List<TestIdentifier> getIdentifiers() {
-			return unmodifiableList(identifiers);
-		}
+    /**
+     * This listener collects the identifiers of executed tests.
+     */
+    private class TestIdentifierListener extends SummaryGeneratingListener {
+		private final List<TestIdentifier> identifiers;
+
+        public TestIdentifierListener(List<TestIdentifier> collectInto) {
+            identifiers = collectInto;
+        }
 
 		@Override
 		public void executionStarted(TestIdentifier testIdentifier) {
-			if (testIdentifier.isTest()) {
-				// filter out testMethods
-				if (includedTestMethods != null && !includedTestMethods.isEmpty()
-						&& testIdentifier.getSource().isPresent()
-						&& testIdentifier.getSource().get() instanceof MethodSource
-						&& !includedTestMethods.contains(((MethodSource)testIdentifier.getSource().get()).getMethodName())) {
-					return;
-				}
- 				identifiers.add(testIdentifier);
+		    if (isTestMethodIncluded(testIdentifier)) {
+		        identifiers.add(testIdentifier);
 			}
 		}
     }
 
+    private class CollectIdentifierFilters implements PostDiscoveryFilter {
+
+        private final Filter<TestDescriptor> combinedTagFilter;
+        private final List<TestIdentifier> identifiers;
+
+        CollectIdentifierFilters(List<TestIdentifier> collectTo) {
+            identifiers = collectTo;
+            List<PostDiscoveryFilter> tagFilters = new ArrayList<>(2);
+            try {
+                List<String> excludedGroups = testGroupConfig.getExcludedGroups();
+                if(excludedGroups != null && !excludedGroups.isEmpty()) {
+                    tagFilters.add(TagFilter.excludeTags(excludedGroups));
+                }
+
+                List<String> includedGroups = testGroupConfig.getIncludedGroups();
+                if(includedGroups != null && !includedGroups.isEmpty()) {
+                    tagFilters.add(TagFilter.includeTags(includedGroups));
+                }
+            } catch(PreconditionViolationException e) {
+                throw new IllegalArgumentException("Error creating tag filter", e);
+            }
+            combinedTagFilter = Filter.composeFilters(tagFilters);
+        }
+
+        @Override
+        public FilterResult apply(TestDescriptor testDescriptor) {
+            FilterResult tagResult = combinedTagFilter.apply(testDescriptor);
+            if (tagResult.excluded()) {
+                return tagResult;
+            }
+
+            if (testDescriptor.mayRegisterTests()) {
+                return FilterResult.included(null);
+            } else {
+                TestIdentifier identifier = TestIdentifier.from(testDescriptor);
+                if (isTestMethodIncluded(identifier)) {
+                    identifiers.add(identifier);
+                }
+                return FilterResult.excluded(null);
+            }
+        }
+
+    }
 }
