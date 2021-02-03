@@ -46,6 +46,7 @@ public class JUnit5TestUnit extends AbstractTestUnit {
 
     @Override
     public void execute(ResultCollector resultCollector) {
+        System.err.println("Execute on JUnit5TestUnit");
         Launcher launcher = LauncherFactory.create();
         LauncherDiscoveryRequest launcherDiscoveryRequest = LauncherDiscoveryRequestBuilder
                 .request()
@@ -55,6 +56,7 @@ public class JUnit5TestUnit extends AbstractTestUnit {
             launcher.registerTestExecutionListeners(new TestExecutionListener() {
                 @Override
                 public void executionSkipped(TestIdentifier testIdentifier, String reason) {
+                    System.err.println("Skipped " + testIdentifier.getDisplayName());
                         if (testIdentifier.isTest()) {
                             resultCollector.notifySkipped(new Description(testIdentifier.getUniqueId(), testClass));
                         }
@@ -86,6 +88,7 @@ public class JUnit5TestUnit extends AbstractTestUnit {
 
             });
             launcher.execute(launcherDiscoveryRequest);
+        System.err.println("End Execute on JUnit5TestUnit");
     }
 
 }

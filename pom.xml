@@ -19,6 +19,8 @@
 		<assertj.version>3.14.0</assertj.version>
 		<junit.platform.version>1.7.0</junit.platform.version>
 		<junit.version>5.7.0</junit.version>
+		<!--<junit.platform.version>1.8.0-SNAPSHOT</junit.platform.version>
+		<junit.version>5.8.0-SNAPSHOT</junit.version>-->
 		<mockito.version>2.7.6</mockito.version>
 		<pitest.version>1.4.11</pitest.version>
 		<cucumber.version>5.0.0</cucumber.version>
@@ -121,6 +123,12 @@
 			<artifactId>cucumber-java8</artifactId>
 			<version>${cucumber.version}</version>
 			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-api</artifactId>
+			<version>${junit.version}</version>
+			<scope>compile</scope>
 		</dependency>
 	</dependencies>
 
@@ -231,4 +239,17 @@
 			<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
 		</repository>
 	</distributionManagement>
+
+	<repositories>
+		<repository>
+			<id>oss.sonatype.org-snapshot</id>
+			<url>http://oss.sonatype.org/content/repositories/snapshots</url>
+			<releases>
+				<enabled>false</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
 </project>

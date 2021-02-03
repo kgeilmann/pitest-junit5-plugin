@@ -58,6 +58,7 @@ public class JUnit5TestUnitFinder implements TestUnitFinder {
 
     @Override
     public List<TestUnit> findTestUnits(Class<?> clazz) {
+        System.err.println("findTestUnits for " + clazz);
         if(clazz.getEnclosingClass() != null) {
             return emptyList();
         }
@@ -68,9 +69,10 @@ public class JUnit5TestUnitFinder implements TestUnitFinder {
         launcher.execute(LauncherDiscoveryRequestBuilder
                 .request()
                 .selectors(DiscoverySelectors.selectClass(clazz))
+                .configurationParameter("junit.jupiter.extensions.autodetection.enabled","true")
                 .filters(identifierFilter)
                 .build(), listener);
-
+        System.err.println("End findTestUnits for " + clazz);
         return collectedIdentifiers
                 .stream()
                 .map(testIdentifier -> new JUnit5TestUnit(clazz, testIdentifier))
@@ -104,7 +106,7 @@ public class JUnit5TestUnitFinder implements TestUnitFinder {
 		@Override
 		public void executionStarted(TestIdentifier testIdentifier) {
 		    if (isTestMethodIncluded(testIdentifier)) {
-		        identifiers.add(testIdentifier);
+                identifiers.add(testIdentifier);
 			}
 		}
     }
@@ -133,8 +135,7 @@ public class JUnit5TestUnitFinder implements TestUnitFinder {
             combinedTagFilter = Filter.composeFilters(tagFilters);
         }
 
-        @Override
-        public FilterResult apply(TestDescriptor testDescriptor) {
+        public FilterResult _apply(TestDescriptor testDescriptor) {
             FilterResult tagResult = combinedTagFilter.apply(testDescriptor);
             if (tagResult.excluded()) {
                 return tagResult;
@@ -149,6 +150,12 @@ public class JUnit5TestUnitFinder implements TestUnitFinder {
                 }
                 return FilterResult.excluded(null);
             }
+        }
+
+        @Override
+        public FilterResult apply(TestDescriptor testDescriptor) {
+            FilterResult tagResult = combinedTagFilter.apply(testDescriptor);
+                return tagResult;
         }
 
     }
